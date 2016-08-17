@@ -2,7 +2,12 @@ package heart
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
 	"time"
+
+	"golang.org/x/oauth2"
 
 	"github.com/icrowley/fake"
 	"github.com/juju/errors"
@@ -52,4 +57,48 @@ func SignJWT(jwt ClientJWT, pk jose.JsonWebKey) (string, error) {
 		return "", errors.Annotate(err, "Couldn't sign the JWT")
 	}
 	return jws.CompactSerialize()
+}
+
+// Client represents an OAuth 2.0 client that conforms with the HEART
+// profile.
+type Client struct {
+	ISS        string
+	AUD        string
+	Endpoint   oauth2.Endpoint
+	Scopes     []string
+	PrivateKey jose.JsonWebKey
+}
+
+// Exchange swaps an authorization code for a token. This
+// exchange is compliant with the HEART profile for requests to the
+// token endpoint as defined by: http://openid.bitbucket.org/HEART/openid-heart-oauth2.html#rfc.section.2.2
+func (c Client) Exchange(code string) (*oauth2.Token, error) {
+	jwt := NewClientJWT(c.ISS, c.AUD)
+	clientAssertion, err := SignJWT(jwt, c.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	values := url.Values{"client_assertion": {clientAssertion},
+		"client_assertion_type": {"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
+		"client_id":             {c.ISS}, "grant_type": {"authorization_code"},
+		"code": {code}}
+	resp, err := http.PostForm(c.Endpoint.TokenURL, values)
+	if err != nil {
+		return nil, errors.Annotate(err, "Couldn't connect to the token endpoint")
+	}
+	defer resp.Body.Close()
+	decoder := json.NewDecoder(resp.Body)
+	token := &oauth2.Token{}
+	err = decoder.Decode(token)
+	if err != nil {
+		return nil, errors.Annotate(err, "Couldn't decode the token")
+	}
+	return token, nil
+}
+
+// AuthURL provides a URL to redirect the client for authorization
+// at the authorization server
+func (c Client) AuthURL(state string) string {
+	values := url.Values{"client_id": {c.ISS}, "state": {"state"}, "response_type": {"code"}}
+	return fmt.Sprintf("%s?%s", c.Endpoint.AuthURL, values.Encode())
 }
