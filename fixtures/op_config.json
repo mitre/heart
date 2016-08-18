@@ -1,0 +1,20 @@
+{
+  "request_parameter_supported": true,
+  "claims_parameter_supported": false,
+  "introspection_endpoint": "http://localhost:8080/openid-connect-server-webapp/introspect",
+  "scopes_supported": [
+    "openid",
+    "profile",
+    "email",
+    "address",
+    "phone",
+    "offline_access"
+  ],
+  "issuer": "http://localhost:8080/openid-connect-server-webapp/",
+  "authorization_endpoint": "http://localhost:8080/openid-connect-server-webapp/authorize",
+  "service_documentation": "http://localhost:8080/openid-connect-server-webapp/about",
+  "token_endpoint": "http://localhost:8080/openid-connect-server-webapp/token",
+  "revocation_endpoint": "http://localhost:8080/openid-connect-server-webapp/revoke",
+  "userinfo_endpoint": "http://localhost:8080/openid-connect-server-webapp/userinfo",
+  "jwks_uri": "http://localhost:8080/openid-connect-server-webapp/jwk",
+  "registration_endpoint": "http://localhost:8080/openid-connect-server-webapp/register"}
