@@ -2,7 +2,10 @@ package heart
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 
 	"github.com/juju/errors"
 
@@ -25,6 +28,26 @@ type OPConfig struct {
 type OpenIDProvider struct {
 	Config OPConfig
 	Key    jose.JsonWebKey
+}
+
+// OpenIDTokenResponse represents the response from and OpenIDProvider's
+// token endpoint when exchanging an authorization code
+type OpenIDTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int64  `json:"expires_in"`
+	IDToken      string `json:"id_token"`
+}
+
+// UserInfo represents the information provided by an OpenID Connect
+// UserInfo endpoint
+type UserInfo struct {
+	SUB               string `json:"sub"`
+	Name              string `json:"name"`
+	PreferredUsername string `json:"preferred_username"`
+	Email             string `json:"email"`
+	EmailVerified     bool   `json:"email_verified"`
 }
 
 // NewOpenIDProvider creates an OpenIDProvider by retrieving its configuration
@@ -68,4 +91,60 @@ func (op *OpenIDProvider) FetchKey() error {
 	op.Key = jwks.Keys[0]
 
 	return nil
+}
+
+// AuthURL generates the URL to redirect a client to start the authentication process
+// as described here: http://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+func (op *OpenIDProvider) AuthURL(clientID, redirectURI, state, nonce string) string {
+	values := url.Values{"client_id": {clientID}, "state": {state}, "response_type": {"code"},
+		"redirect_uri": {redirectURI}, "nonce": {nonce}, "scope": {"openid profile email"}}
+	return fmt.Sprintf("%s?%s", op.Config.AuthorizationEndpoint, values.Encode())
+}
+
+// Exchange takes the authorization code and swaps it for the various sets of token that an
+// OpenIDProvider can return
+func (op *OpenIDProvider) Exchange(code, redirectURI string, c Client) (*OpenIDTokenResponse, error) {
+	jwt := NewClientJWT(c.ISS, c.AUD)
+	clientAssertion, err := SignJWT(jwt, c.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	values := url.Values{"grant_type": {"authorization_code"}, "code": {code},
+		"redirect_uri": {redirectURI}, "client_assertion": {clientAssertion},
+		"client_assertion_type": {"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
+		"client_id":             {c.ISS}}
+	resp, err := http.PostForm(op.Config.TokenEndpoint, values)
+	if err != nil {
+		return nil, errors.Annotate(err, "Couldn't connect to the token endpoint")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return nil, errors.Unauthorizedf("Server responded with status code: %d and body:\n %s", resp.StatusCode, string(body))
+	}
+	decoder := json.NewDecoder(resp.Body)
+	token := &OpenIDTokenResponse{}
+	err = decoder.Decode(token)
+	if err != nil {
+		return nil, errors.Annotate(err, "Couldn't decode the token response")
+	}
+	return token, nil
+}
+
+// UserInfo retrieves information about the user from the OpenIDProvider
+func (op *OpenIDProvider) UserInfo(accessToken string) (*UserInfo, error) {
+	req, _ := http.NewRequest("GET", op.Config.UserInfoEndpoint, nil)
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, errors.Annotate(err, "Couldn't connect to the user info endpoint")
+	}
+	defer resp.Body.Close()
+	decoder := json.NewDecoder(resp.Body)
+	userInfo := &UserInfo{}
+	err = decoder.Decode(userInfo)
+	if err != nil {
+		return nil, errors.Annotate(err, "Couldn't decode the token response")
+	}
+	return userInfo, nil
 }
