@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/juju/errors"
 
@@ -37,7 +38,23 @@ type OpenIDTokenResponse struct {
 	TokenType    string `json:"token_type"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int64  `json:"expires_in"`
+	Expiration   time.Time
 	IDToken      string `json:"id_token"`
+}
+
+type openIDTokenResponse OpenIDTokenResponse
+
+// UnmarshalJSON sets the Expiration to a Time based on the current time
+// and the expires_in passed in
+func (resp *OpenIDTokenResponse) UnmarshalJSON(data []byte) (err error) {
+	o2 := openIDTokenResponse{}
+	if err = json.Unmarshal(data, &o2); err == nil {
+		*resp = OpenIDTokenResponse(o2)
+		now := time.Now()
+		resp.Expiration = now.Add(time.Duration(resp.ExpiresIn) * time.Second)
+		return
+	}
+	return
 }
 
 // UserInfo represents the information provided by an OpenID Connect
@@ -95,22 +112,22 @@ func (op *OpenIDProvider) FetchKey() error {
 
 // AuthURL generates the URL to redirect a client to start the authentication process
 // as described here: http://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-func (op *OpenIDProvider) AuthURL(clientID, redirectURI, state, nonce string) string {
-	values := url.Values{"client_id": {clientID}, "state": {state}, "response_type": {"code"},
-		"redirect_uri": {redirectURI}, "nonce": {nonce}, "scope": {"openid profile email"}}
+func (op *OpenIDProvider) AuthURL(c Client, state string) string {
+	values := url.Values{"client_id": {c.ISS}, "state": {state}, "response_type": {"code"},
+		"redirect_uri": {c.RedirectURI}, "scope": {"openid profile email"}}
 	return fmt.Sprintf("%s?%s", op.Config.AuthorizationEndpoint, values.Encode())
 }
 
 // Exchange takes the authorization code and swaps it for the various sets of token that an
 // OpenIDProvider can return
-func (op *OpenIDProvider) Exchange(code, redirectURI string, c Client) (*OpenIDTokenResponse, error) {
+func (op *OpenIDProvider) Exchange(code string, c Client) (*OpenIDTokenResponse, error) {
 	jwt := NewClientJWT(c.ISS, c.AUD)
 	clientAssertion, err := SignJWT(jwt, c.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 	values := url.Values{"grant_type": {"authorization_code"}, "code": {code},
-		"redirect_uri": {redirectURI}, "client_assertion": {clientAssertion},
+		"redirect_uri": {c.RedirectURI}, "client_assertion": {clientAssertion},
 		"client_assertion_type": {"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
 		"client_id":             {c.ISS}}
 	resp, err := http.PostForm(op.Config.TokenEndpoint, values)

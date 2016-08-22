@@ -62,11 +62,12 @@ func SignJWT(jwt ClientJWT, pk jose.JsonWebKey) (string, error) {
 // Client represents an OAuth 2.0 client that conforms with the HEART
 // profile.
 type Client struct {
-	ISS        string
-	AUD        string
-	Endpoint   oauth2.Endpoint
-	Scopes     []string
-	PrivateKey jose.JsonWebKey
+	ISS         string
+	AUD         string
+	Endpoint    oauth2.Endpoint
+	Scopes      []string
+	PrivateKey  jose.JsonWebKey
+	RedirectURI string
 }
 
 // Exchange swaps an authorization code for a token. This
