@@ -30,7 +30,7 @@ func (suite *MiddlewareSuite) SetupTest() {
 }
 
 func (suite *MiddlewareSuite) TestNoAuthHeader() {
-	handler := HEARTOAuthIntrospectionHandler("", "", "", suite.PrivateKey)
+	handler := OAuthIntrospectionHandler("", "", "", suite.PrivateKey)
 	g := gin.New()
 	g.GET("/", handler)
 	server := httptest.NewServer(g)

@@ -22,7 +22,7 @@ import (
 // scopes will be a []string containing all scopes valid for the provided token. subject will be
 // an identifier for the user who delegated the authority represented by the token. clientID will
 // contain the identifier for the client issuing the request.
-func HEARTOAuthIntrospectionHandler(endpoint, iss, aud string, pk jose.JsonWebKey) gin.HandlerFunc {
+func OAuthIntrospectionHandler(endpoint, iss, aud string, pk jose.JsonWebKey) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		auth := c.Request.Header.Get("Authorization")
 		if auth == "" {
