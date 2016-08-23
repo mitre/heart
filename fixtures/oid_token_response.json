@@ -1,0 +1,5 @@
+{
+    "access_token": "random_characters",
+    "expires_in": 600,
+    "id_token": "the_id_token"
+}
