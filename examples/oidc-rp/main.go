@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	"gitlab.mitre.org/andrewg/heart"
+	"github.com/mitre/heart"
 
 	"github.com/gin-gonic/contrib/sessions"
 	"github.com/gin-gonic/gin"
