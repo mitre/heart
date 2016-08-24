@@ -80,6 +80,10 @@ func OAuthIntrospectionHandler(endpoint, iss, aud string, pk jose.JsonWebKey) gi
 // user will be redirected to the provided redirectURI.
 func OIDCAuthenticationHandler(client Client, op *OpenIDProvider) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Let things pass through to the redirect path, as it sets up the session
+		if strings.Contains(c.Request.URL.Path, "/redirect") {
+			return
+		}
 		session := sessions.Default(c)
 		ui := session.Get("UserInfo")
 		if ui != nil {
