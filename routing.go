@@ -11,7 +11,7 @@ import (
 	"gopkg.in/square/go-jose.v1"
 )
 
-func SetUpRoutes(jwkPath, opURL, serverURL, cookieSecret string, engine *gin.Engine) error {
+func SetUpRoutes(jwkPath, clientID, opURL, serverURL, cookieSecret string, engine *gin.Engine) error {
 	jwkJSON, err := os.Open(jwkPath)
 	if err != nil {
 		return errors.NewNotFound(err, "Couldn't open the RP JWK file")
@@ -27,7 +27,7 @@ func SetUpRoutes(jwkPath, opURL, serverURL, cookieSecret string, engine *gin.Eng
 
 	// Set up the HEART Compliant OAuth 2.0 client that will be used by the OIDC RP
 	client := Client{
-		ISS:         "simple",
+		ISS:         clientID,
 		AUD:         opURL + "/",
 		RedirectURI: serverURL + "/redirect",
 		PrivateKey:  jwk,
