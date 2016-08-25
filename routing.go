@@ -53,12 +53,21 @@ func SetUpRoutes(jwkPath, clientID, opURL, serverURL, cookieSecret string, engin
 	// The OIDCAuthenticationHandler is set up before the IndexHandler in the handler function
 	// chain. It will check to see if the user is logged in based on their session. If they are not
 	// the user will be redirected to the authentication endpoint at the OP.
-	engine.Use(OIDCAuthenticationHandler(client, provider))
+	oidcHandler := OIDCAuthenticationHandler(client, provider)
+	oauthHandler := OAuthIntrospectionHandler(provider.Config.IntrospectionEndpoint, client.ISS, client.AUD, client.PrivateKey)
+	engine.Use(func(c *gin.Context) {
+		if c.Request.Header.Get("Authorization") != "" {
+			oauthHandler(c)
+		} else {
+			oidcHandler(c)
+		}
+	})
 
 	// This handler is to take the redirect from the OP when the user logs in. It will
 	// then fetch information about the user by hitting the user info endpoint and put
 	// that in the session. Lastly, this handler is set up to redirect the user back
 	// to the root.
 	engine.GET("/redirect", RedirectHandler(client, provider, serverURL))
+	engine.GET("/logout", LogoutHandler)
 	return nil
 }

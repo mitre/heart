@@ -160,3 +160,16 @@ func RedirectHandler(client Client, op *OpenIDProvider, successfulAuthRedirectUR
 		c.Redirect(http.StatusFound, successfulAuthRedirectURL)
 	}
 }
+
+// LogoutHandler allows users to log out by clearing all
+// values from their session
+func LogoutHandler(c *gin.Context) {
+	session := sessions.Default(c)
+	session.Clear()
+	err := session.Save()
+	if err != nil {
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	c.String(http.StatusOK, "You have successfully logged out.")
+}
