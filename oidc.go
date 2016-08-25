@@ -28,7 +28,7 @@ type OPConfig struct {
 // expected that one will be created using NewOpenIDProvider
 type OpenIDProvider struct {
 	Config OPConfig
-	Key    jose.JsonWebKey
+	Keys   jose.JsonWebKeySet
 }
 
 // OpenIDTokenResponse represents the response from and OpenIDProvider's
@@ -88,7 +88,6 @@ func NewOpenIDProvider(issuerURL string) (*OpenIDProvider, error) {
 
 // FetchKey looks at the JWKSURI in the OPConfig, pulls down the
 // key set and parses the keys
-// TODO: This currently only handles the first key
 func (op *OpenIDProvider) FetchKey() error {
 	if op.Config.JWKSURI == "" {
 		return errors.New("No JWKSURI provided")
@@ -100,14 +99,40 @@ func (op *OpenIDProvider) FetchKey() error {
 	}
 	defer resp.Body.Close()
 	decoder := json.NewDecoder(resp.Body)
-	jwks := &jose.JsonWebKeySet{}
-	err = decoder.Decode(jwks)
+	jwks := jose.JsonWebKeySet{}
+	err = decoder.Decode(&jwks)
 	if err != nil {
 		return errors.Annotate(err, "Unable to decode JWKS")
 	}
-	op.Key = jwks.Keys[0]
+	op.Keys = jwks
 
 	return nil
+}
+
+// Validate checks the token against the Keys for this OpenIDProvider.
+// It is assumed that a user will invoke FetchKey before calling this
+// function.
+func (op *OpenIDProvider) Validate(token string) (bool, error) {
+	jws, err := jose.ParseSigned(token)
+	if err != nil {
+		return false, errors.NewNotValid(err, "Couldn't parse the token")
+	}
+
+	for _, sig := range jws.Signatures {
+		keyID := sig.Header.KeyID
+		opKeys := op.Keys.Key(keyID)
+		if len(opKeys) < 1 {
+			// Can't find the server key that this token claims to be signed with
+			return false, errors.NotFoundf("Couldn't find KeyID %s in the server's keys", keyID)
+		}
+		opKey := opKeys[0]
+		_, err = jws.Verify(opKey.Key)
+		if err != nil {
+			// Couldn't verify the signature
+			return false, errors.NotValidf("Signature failed validation")
+		}
+	}
+	return true, nil
 }
 
 // AuthURL generates the URL to redirect a client to start the authentication process

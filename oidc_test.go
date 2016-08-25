@@ -37,7 +37,7 @@ func TestFetchKey(t *testing.T) {
 	op := OpenIDProvider{Config: config}
 	err := op.FetchKey()
 	assert.NoError(err)
-	assert.Equal("1471357142", op.Key.KeyID)
+	assert.Equal("1471357142", op.Keys.Keys[0].KeyID)
 }
 
 func TestUnmarshalJSON(t *testing.T) {
@@ -110,6 +110,33 @@ func TestFailedExchange(t *testing.T) {
 	_, err := op.Exchange(code, setupClient())
 	assert.Error(err)
 	assert.True(errors.IsUnauthorized(err))
+}
+
+func TestVerify(t *testing.T) {
+	assert := assert.New(t)
+	jwt := NewClientJWT("my_client_id", "http://server.com")
+	jwkJSON, err := os.Open("fixtures/verify_private_key.json")
+	assert.NoError(err)
+	defer jwkJSON.Close()
+	jwkBytes, err := ioutil.ReadAll(jwkJSON)
+	assert.NoError(err)
+	jwk := jose.JsonWebKey{}
+	json.Unmarshal(jwkBytes, &jwk)
+	signedBlob, err := SignJWT(jwt, jwk)
+	assert.NoError(err)
+	assert.NotEmpty(signedBlob)
+	jwksJSON, err := os.Open("fixtures/verify_pk_set.json")
+	assert.NoError(err)
+	defer jwksJSON.Close()
+	jwksBytes, err := ioutil.ReadAll(jwksJSON)
+	assert.NoError(err)
+	jwks := jose.JsonWebKeySet{}
+	err = json.Unmarshal(jwksBytes, &jwks)
+	assert.NoError(err)
+	op := &OpenIDProvider{Keys: jwks}
+	valid, err := op.Validate(signedBlob)
+	assert.NoError(err)
+	assert.True(valid)
 }
 
 func setupClient() Client {

@@ -44,7 +44,7 @@ func NewClientJWT(iss string, aud string) ClientJWT {
 // SignJWT takes a ClientJWT, marshals it into JSON, signs the JSON with the
 // JWK provided and then returns the blob as a string.
 func SignJWT(jwt ClientJWT, pk jose.JsonWebKey) (string, error) {
-	signer, err := jose.NewSigner(jose.RS512, pk.Key)
+	signer, err := jose.NewSigner(jose.RS512, &pk)
 	if err != nil {
 		return "", errors.Annotate(err, "Couldn't create JWT Signer")
 	}
