@@ -2,7 +2,6 @@ package heart
 
 import (
 	"encoding/gob"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -87,7 +86,6 @@ func OIDCAuthenticationHandler(client Client, op *OpenIDProvider) gin.HandlerFun
 		session := sessions.Default(c)
 		ui := session.Get("UserInfo")
 		if ui != nil {
-			fmt.Println("UI is not nil")
 			tokenInterface := session.Get("OpenIDTokenResponse")
 			if tokenInterface != nil {
 				token := tokenInterface.(OpenIDTokenResponse)
@@ -95,12 +93,15 @@ func OIDCAuthenticationHandler(client Client, op *OpenIDProvider) gin.HandlerFun
 					c.Set("UserInfo", session.Get("UserInfo"))
 					return
 				}
-				fmt.Printf("Got Expiration time of %s\n", token.Expiration)
+				valid, err := op.Validate(token.IDToken)
+				if err != nil || !valid {
+					c.Abort()
+					c.String(http.StatusForbidden, "Provided IDToken is not valid or could not be validated")
+				}
 				session.Delete("UserInfo")
 				session.Delete("OpenIDTokenResponse")
 			}
 		}
-		fmt.Println("UI is nil")
 		state := fake.CharactersN(20)
 		session.Set("state", state)
 		err := session.Save()
